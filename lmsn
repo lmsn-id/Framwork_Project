@@ -1,0 +1,37 @@
+<?php
+
+$watchDir = __DIR__;
+$serverCommand = "php -S localhost:8000 -t public";
+$pid = null;
+
+function startServer()
+{
+    global $serverCommand, $pid;
+    if ($pid) {
+        echo "Restarting server...\n";
+        exec("taskkill /F /PID $pid > nul 2>&1");
+    }
+    $pid = shell_exec("start /B $serverCommand && echo %ERRORLEVEL%");
+    echo "Server started with PID: $pid\n";
+}
+
+function getFileModTimes($dir)
+{
+    $files = scandir($dir);
+    $modTimes = [];
+    foreach ($files as $file) {
+        if ($file === "." || $file === "..")
+            continue;
+        $fullPath = "$dir/$file";
+        if (is_dir($fullPath)) {
+            $modTimes = array_merge($modTimes, getFileModTimes($fullPath));
+        } else {
+            $modTimes[$fullPath] = filemtime($fullPath);
+        }
+    }
+    return $modTimes;
+}
+
+startServer();
+$lastModTimes = getFileModTimes($watchDir);
+
