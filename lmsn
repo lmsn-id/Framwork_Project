@@ -1,18 +1,31 @@
 <?php
 
-$watchDir = __DIR__;
+$watchDir = __DIR__ . '/views'; 
 $serverCommand = "php -S localhost:8000 -t public";
-$pid = null;
+$tailwindCommand = "npx tailwindcss -i public/css/style.css -o public/css/tailwindcss.css --watch";
+$pidServer = null;
+$pidTailwind = null;
 
 function startServer()
 {
-    global $serverCommand, $pid;
-    if ($pid) {
-        echo "Restarting server...\n";
-        exec("taskkill /F /PID $pid > nul 2>&1");
+    global $serverCommand, $pidServer;
+    if ($pidServer) {
+        echo "Restarting PHP server...\n";
+        exec("taskkill /F /PID $pidServer > nul 2>&1");
     }
-    $pid = shell_exec("start /B $serverCommand && echo %ERRORLEVEL%");
-    echo "Server started with PID: $pid\n";
+    $pidServer = shell_exec("start /B $serverCommand && echo %ERRORLEVEL%");
+    echo "PHP Server started with PID: $pidServer\n";
+}
+
+function startTailwind()
+{
+    global $tailwindCommand, $pidTailwind;
+    if ($pidTailwind) {
+        echo "Restarting Tailwind CSS...\n";
+        exec("taskkill /F /PID $pidTailwind > nul 2>&1");
+    }
+    $pidTailwind = shell_exec("start /B $tailwindCommand && echo %ERRORLEVEL%");
+    echo "Tailwind CSS started with PID: $pidTailwind\n";
 }
 
 function getFileModTimes($dir)
@@ -20,8 +33,7 @@ function getFileModTimes($dir)
     $files = scandir($dir);
     $modTimes = [];
     foreach ($files as $file) {
-        if ($file === "." || $file === "..")
-            continue;
+        if ($file === "." || $file === "..") continue;
         $fullPath = "$dir/$file";
         if (is_dir($fullPath)) {
             $modTimes = array_merge($modTimes, getFileModTimes($fullPath));
@@ -32,6 +44,42 @@ function getFileModTimes($dir)
     return $modTimes;
 }
 
+function shutdown()
+{
+    global $pidServer, $pidTailwind;
+    echo "\nShutting down...\n";
+    if ($pidServer) {
+        exec("taskkill /F /PID $pidServer > nul 2>&1");
+        echo "PHP Server stopped.\n";
+    }
+    if ($pidTailwind) {
+        exec("taskkill /F /PID $pidTailwind > nul 2>&1");
+        echo "Tailwind CSS stopped.\n";
+    }
+    exit(0);
+}
+
+if (function_exists('sapi_windows_set_ctrl_handler')) {
+    sapi_windows_set_ctrl_handler(function ($event) {
+        if ($event === PHP_WINDOWS_EVENT_CTRL_C) {
+            shutdown();
+        }
+    });
+} else {
+    echo "Warning: sapi_windows_set_ctrl_handler is not available. Ctrl + C handling may not work.\n";
+}
+
 startServer();
+startTailwind();
 $lastModTimes = getFileModTimes($watchDir);
 
+while (true) {
+    sleep(1);
+    $newModTimes = getFileModTimes($watchDir);
+    if ($newModTimes !== $lastModTimes) {
+        echo "Changes detected. Restarting...\n";
+        startServer();
+        startTailwind();
+        $lastModTimes = $newModTimes;
+    }
+}

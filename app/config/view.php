@@ -15,20 +15,20 @@ class View
         $viewPath = realpath(__DIR__ . "/../views/pages/{$view}.php");
 
         if (strpos($view, '..') !== false) {
-            return self::renderError("forbidden");
+            return self::renderError("403");
         }
 
         if (!$viewPath || strpos($viewPath, $pagesDir) !== 0) {
-            return self::renderError("forbidden");
+            return self::renderError("403");
         }
 
         if (!file_exists($viewPath)) {
-            return self::renderError("notfound");
+            return self::renderError("400");
         }
 
         $content = file_get_contents($viewPath);
         if (stripos($content, '<template>') === false) {
-            return self::renderError("template");
+            return self::renderError("500");
         }
 
         extract($data);
@@ -48,8 +48,18 @@ class View
             die("Error file not found: {$errorType}.php");
         }
 
+        $data = [
+            'title' => 'Error',
+            'icon' => Env::get('APP_ICON', '/LMSN.webp'),
+        ];
+
+        extract($data);
         ob_start();
         include $errorPath;
+        $content = ob_get_clean();
+
+        ob_start();
+        include __DIR__ . '/../views/layout.php';
         return ob_get_clean();
     }
 }
